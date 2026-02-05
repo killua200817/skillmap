@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SkillMap - Visualize Your Skill Journey</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', -apple-system, sans-serif; background: #FAFBFC; color: #1A1A2E; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+        header { background: white; border-bottom: 1px solid #E5E7EB; padding: 16px 0; margin-bottom: 32px; }
+        h1 { font-size: 28px; font-weight: 700; color: #5B4ECC; }
+        .tagline { font-size: 14px; color: #6B7280; margin-top: 4px; }
+        .tabs { display: flex; gap: 24px; margin-bottom: 32px; border-bottom: 2px solid #E5E7EB; }
+        .tab { padding: 12px 0; cursor: pointer; color: #6B7280; font-weight: 500; position: relative; }
+        .tab.active { color: #5B4ECC; }
+        .tab.active::after { content: ''; position: absolute; bottom: -2px; left: 0; right: 0; height: 2px; background: #5B4ECC; }
+        .btn { background: #5B4ECC; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500; }
+        .btn:hover { background: #4A3DAD; }
+        .btn-secondary { background: white; color: #5B4ECC; border: 1px solid #5B4ECC; }
+        .card { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 16px; }
+        .project-list { display: grid; gap: 16px; }
+        .project-card { background: white; border: 1px solid #E5E7EB; border-radius: 12px; padding: 20px; }
+        .project-name { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
+        .project-dates { font-size: 14px; color: #6B7280; margin-bottom: 12px; }
+        .skill-tags { display: flex; flex-wrap: wrap; gap: 8px; }
+        .skill-tag { background: #F3F0FF; color: #5B4ECC; padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 500; }
+        .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 1000; }
+        .modal.active { display: flex; }
+        .modal-content { background: white; border-radius: 12px; padding: 32px; max-width: 500px; width: 90%; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; font-size: 14px; font-weight: 500; margin-bottom: 8px; }
+        input, textarea { width: 100%; padding: 10px; border: 1px solid #E5E7EB; border-radius: 8px; font-size: 14px; font-family: inherit; }
+        input:focus, textarea:focus { outline: none; border-color: #5B4ECC; }
+        .skills-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 16px; }
+        .skill-card { background: white; border: 1px solid #E5E7EB; border-radius: 12px; padding: 20px; }
+        .skill-name { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
+        .skill-count { font-size: 14px; color: #6B7280; }
+        .empty-state { text-align: center; padding: 60px 20px; color: #6B7280; }
+        .empty-state svg { width: 64px; height: 64px; margin-bottom: 16px; opacity: 0.3; }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>SkillMap</h1>
+            <p class="tagline">Visualize your skill journey, one project at a time.</p>
+        </div>
+    </header>
+    
+    <div class="container">
+        <div class="tabs">
+            <div class="tab active" onclick="showTab('projects')">Projects</div>
+            <div class="tab" onclick="showTab('skills')">Skills</div>
+        </div>
+        
+        <div id="projects-tab" class="tab-content">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                <h2>Your Projects</h2>
+                <button class="btn" onclick="openAddProject()">+ Add Project</button>
+            </div>
+            <div id="projects-list" class="project-list"></div>
+        </div>
+        
+        <div id="skills-tab" class="tab-content" style="display: none;">
+            <h2 style="margin-bottom: 24px;">Your Skills</h2>
+            <div id="skills-list" class="skills-list"></div>
+        </div>
+    </div>
+    
+    <div id="add-project-modal" class="modal">
+        <div class="modal-content">
+            <h2 style="margin-bottom: 24px;">Add New Project</h2>
+            <form id="project-form">
+                <div class="form-group">
+                    <label>Project Name*</label>
+                    <input type="text" id="project-name" required>
+                </div>
+                <div class="form-group">
+                    <label>Start Date*</label>
+                    <input type="date" id="start-date" required>
+                </div>
+                <div class="form-group">
+                    <label>End Date*</label>
+                    <input type="date" id="end-date" required>
+                </div>
+                <div class="form-group">
+                    <label>Skills (comma-separated)*</label>
+                    <input type="text" id="skills" placeholder="e.g., React, TypeScript, UI Design" required>
+                </div>
+                <div style="display: flex; gap: 12px;">
+                    <button type="submit" class="btn">Save Project</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <script>
+        let projects = JSON.parse(localStorage.getItem('skillmap-projects') || '[]');
+        
+        function renderProjects() {
+            const list = document.getElementById('projects-list');
+            if (projects.length === 0) {
+                list.innerHTML = '<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><h3>No projects yet</h3><p>Add your first project to start tracking your skills!</p></div>';
+                return;
+            }
+            list.innerHTML = projects.map(p => `
+                <div class="project-card">
+                    <div class="project-name">${p.name}</div>
+                    <div class="project-dates">${new Date(p.startDate).toLocaleDateString()} - ${new Date(p.endDate).toLocaleDateString()}</div>
+                    <div class="skill-tags">${p.skills.map(s => `<span class="skill-tag">${s}</span>`).join('')}</div>
+                </div>
+            `).join('');
+        }
+        
+        function renderSkills() {
+            const skillsMap = {};
+            projects.forEach(p => {
+                p.skills.forEach(s => {
+                    skillsMap[s] = (skillsMap[s] || 0) + 1;
+                });
+            });
+            const list = document.getElementById('skills-list');
+            const skills = Object.entries(skillsMap);
+            if (skills.length === 0) {
+                list.innerHTML = '<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><h3>No skills tracked</h3><p>Add projects to see your skills here!</p></div>';
+                return;
+            }
+            list.innerHTML = skills.sort((a,b) => b[1] - a[1]).map(([skill, count]) => `
+                <div class="skill-card">
+                    <div class="skill-name">${skill}</div>
+                    <div class="skill-count">Used in ${count} project${count > 1 ? 's' : ''}</div>
+                </div>
+            `).join('');
+        }
+        
+        function showTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById('projects-tab').style.display = tab === 'projects' ? 'block' : 'none';
+            document.getElementById('skills-tab').style.display = tab === 'skills' ? 'block' : 'none';
+            if (tab === 'skills') renderSkills();
+        }
+        
+        function openAddProject() {
+            document.getElementById('add-project-modal').classList.add('active');
+        }
+        
+        function closeModal() {
+            document.getElementById('add-project-modal').classList.remove('active');
+            document.getElementById('project-form').reset();
+        }
+        
+        document.getElementById('project-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const project = {
+                id: Date.now(),
+                name: document.getElementById('project-name').value,
+                startDate: document.getElementById('start-date').value,
+                endDate: document.getElementById('end-date').value,
+                skills: document.getElementById('skills').value.split(',').map(s => s.trim()).filter(s => s)
+            };
+            projects.unshift(project);
+            localStorage.setItem('skillmap-projects', JSON.stringify(projects));
+            renderProjects();
+            closeModal();
+        });
+        
+        renderProjects();
+    </script>
+</body>
+</html>
